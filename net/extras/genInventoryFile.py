@@ -26,7 +26,7 @@ class Inventory:
         self.configInfo = SafeDict(config)
 
     def handleMissing(self, item, holder, fd):
-        print "ERROR No entry for {} in {}".format(item, holder)
+	print "ERROR No entry for {} in {}".format(item, holder)
         fd.close()
         sys.exit(1)
 
@@ -36,6 +36,32 @@ class Inventory:
         else:
             cfg_entry = "{}={}\n".format(config.lower(), self.configInfo[config])
             outFd.write(cfg_entry)
+
+    def parseAciLeafPath(self, env, filedescriptor):
+
+        #parsing APIC_LEAF_NODES
+        if self.configInfo[env] is 'missing':
+            self.handleMissing(env, self.cfgFile, filedescriptor)
+
+        if self.configInfo[env] is None:
+            self.handleMissing(env, self.cfgFile, filedescriptor)
+        else:
+            leafCount = 0
+            leafStr = env.lower() + "="
+            for leaf in self.configInfo[env]:
+                if leafCount > 0:
+                    leafStr += ","
+
+                leafStr += leaf
+                leafCount += 1
+
+            # if no leaf was found, treat as error
+            if leafCount == 0:
+                self.handleMissing(env, self.cfgFile, filedescriptor);
+
+            leafStr += "\n"
+            print "\n\t leafStr is ", leafStr
+            return leafStr
 
     def writeInventory(self, outFd):
         outFd.write("[" + Inventory.groupName + "]\n")
@@ -71,27 +97,10 @@ class Inventory:
             self.writeInventoryEntry(outFd, 'APIC_EPG_BRIDGE_DOMAIN')
             self.writeInventoryEntry(outFd, 'APIC_CONTRACTS_UNRESTRICTED_MODE')
 
-            if self.configInfo['APIC_LEAF_NODES'] is 'missing':
-                self.handleMissing("APIC_LEAF_NODES", self.cfgFile, outFd);
-
-            if self.configInfo['APIC_LEAF_NODES'] is None:
-                self.handleMissing("APIC_LEAF_NODES", self.cfgFile, outFd);
-            else:
-                leafCount = 0
-                leafStr = "apic_leaf_nodes="
-                for leaf in self.configInfo['APIC_LEAF_NODES']:
-                    if leafCount > 0:
-                        leafStr += ","
-
-                    leafStr += leaf
-                    leafCount += 1
-
-                # if no leaf was found, treat as error
-                if leafCount == 0:
-                    self.handleMissing("APIC_LEAF_NODES", self.cfgFile, outFd);
-                
-                leafStr += "\n"
-                outFd.write(leafStr)
+	    leafStr = self.parseAciLeafPath('APIC_LEAF_NODES', outFd)
+            outFd.write(leafStr)
+            pathStr = self.parseAciLeaf('APIC_LEAF_NODES_PATH', outFd)
+            outFd.write(pathStr)
 
     def writeNodeInfo(self):
         with open(self.nodeInfoFile, "w+") as nodeInfoFd:
